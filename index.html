@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font: 13px Helvetica, Arial; }
+      form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+      form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+      form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages li { padding: 5px 10px; }
+      #messages li:nth-child(odd) { background: #eee; }
+    </style>
+  </head>
+  <body>
+    <ul id="updates"></ul>
+    <ul id="messages"></ul>
+    <form action="">
+      <input id="m" autocomplete="off" placeholder="Message" /><button>Send</button>
+    </form>
+    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+    <script>
+      var socket = io();
+      var typing = false;
+      var messageEl = $("#m");
+      var nickEl = $("#nick");
+      var updatesEl = $("#updates");
+      var timeout;
+
+      var nickname;
+      setNickname();
+
+      function setNickname() {
+        if (!nickname) {
+          var name = window.prompt("What's your name?");
+
+          if (!name) {
+            alert("You have to set name!");
+            setNickname();
+          }
+
+          nickname = name;
+          socket.emit('join',name);
+          socket.emit('chat message', name + " joined chat!");
+        }
+      }
+
+      function timeoutFunction() {
+        typing = false;
+        socket.emit("typing", false);
+      }
+
+      messageEl.keypress(function(e){
+        if (e.which !== 13) {
+          if (typing === false && messageEl.is(":focus")) {
+            typing = true;
+            socket.emit("typing", true);
+          } else {
+            clearTimeout(timeout);
+            timeout = setTimeout(timeoutFunction, 5000);
+          }
+        }
+      });
+
+      $('form').submit(function(){
+        var message = nickname + ': ' + messageEl.val();
+
+        socket.emit('chat message', message);
+        messageEl.val('');
+        return false;
+      });
+
+      messageEl.on("keyup", function(e) {
+        typing = messageEl.val() !== "" ? true : false;
+      });
+
+      socket.on("isTyping", function(data) {
+        var sid = socket.io.engine.id;
+
+        if (data.sid !== sid && data.isTyping ) {
+          if ($("#"+data.person+"").length === 0) {
+            updatesEl.append("<li id='"+ data.person +"'><span class='text-muted'><small> " + data.person + " is typing.</small></li>");
+            timeout = setTimeout(timeoutFunction, 5000);
+          }
+        } else {
+          $("#"+data.person+"").remove();
+        }
+      });
+
+      socket.on('chat message', function(msg){
+        if (msg === nickname + " joined chat!") {
+          msg = "You have joined the chat.";
+        } 
+        $('#messages').append($('<li>').text(msg));
+      });
+    </script>
+  </body>
+</html>
